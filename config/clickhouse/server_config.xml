@@ -1,0 +1,46 @@
+<clickhouse>
+    <!-- We will listen on all interfaces -->
+    <listen_host>0.0.0.0</listen_host>
+
+    <logger>
+        <level>information</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <console>1</console>
+    </logger>
+
+    <http_port>8123</http_port>
+    <tcp_port>9000</tcp_port>
+    <interserver_http_port>9009</interserver_http_port>
+    
+    <!-- This tells ClickHouse to connect to Kafka (running in Docker) -->
+    <kafka>
+        <broker_list>
+            <broker>kafka:9092</broker>
+        </broker_list>
+    </kafka>
+
+    <!-- This defines the macros for shard/replica identity. -->
+    <!-- These values are OVERRIDDEN by docker-compose.yml -->
+    <macros>
+        <shard>1</shard>
+        <replica>1</replica>
+    </macros>
+
+    <!-- Connection to our ClickHouse Keeper -->
+    <zookeeper>
+        <node>
+            <host>clickhouse-keeper</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <!-- This setting tells ClickHouse to automatically replicate schemas -->
+    <!-- that are created ON CLUSTER -->
+    <distributed_ddl>
+        <path>/clickhouse/tables/{shard}/ddl_queue</path>
+    </distributed_ddl>
+
+    <!-- This includes our cluster definition file -->
+    <include_from>/etc/clickhouse-server/config.xml.d/metrika.xml</include_from>
+</clickhouse>

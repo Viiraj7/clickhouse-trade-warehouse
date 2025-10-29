@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------------
+  # 1. KAFKA & ITS KEEPER (Zookeeper)
+  # ---------------------------------------------------
+  kafka-keeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: kafka-keeper
+    container_name: kafka-keeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"    # Internal Docker port (for ClickHouse Kafka Engine)
+      - "29092:29092"  # External port (for our Python producer.py)
+    depends_on:
+      - kafka-keeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'kafka-keeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  # ---------------------------------------------------
+  # 2. CLICKHOUSE CLUSTER & ITS KEEPER
+  # ---------------------------------------------------
+  clickhouse-keeper:
+    image: clickhouse/clickhouse-keeper:24.3-alpine
+    hostname: clickhouse-keeper
+    container_name: clickhouse-keeper
+    ports:
+      - "9181:9181"
+    volumes:
+      - ./config/clickhouse/keeper_config.xml:/etc/clickhouse-keeper/keeper_config.xml
+
+  clickhouse-01: # Shard 1, Replica 1
+    image: clickhouse/clickhouse-server:24.3-alpine
+    hostname: clickhouse-01
+    container_name: clickhouse-01
+    ports:
+      - "8123:8123" # HTTP port for API
+      - "9000:9000" # Native client port
+    depends_on:
+      - clickhouse-keeper
+    volumes:
+      - ./config/clickhouse/server_config.xml:/etc/clickhouse-server/config.xml
+      - ./config/clickhouse/metrika.xml:/etc/clickhouse-server/config.xml.d/metrika.xml
+    # This 'macros' section defines the unique identity for this node
+    environment:
+      - CLICKHOUSE_MACROS_SHARD: 1
+      - CLICKHOUSE_MACROS_REPLICA: 1
+
+  clickhouse-02: # Shard 2, Replica 1
+    image: clickhouse/clickhouse-server:24.3-alpine
+    hostname: clickhouse-02
+    container_name: clickhouse-02
+    ports:
+      - "8124:8123" # Map to host port 8124 to avoid conflict
+      - "9001:9000" # Map to host port 9001
+    depends_on:
+      - clickhouse-keeper
+    volumes:
+      - ./config/clickhouse/server_config.xml:/etc/clickhouse-server/config.xml
+      - ./config/clickhouse/metrika.xml:/etc/clickhouse-server/config.xml.d/metrika.xml
+    # This 'macros' section defines the unique identity for this node
+    environment:
+      - CLICKHOUSE_MACROS_SHARD: 2
+      - CLICKHOUSE_MACROS_REPLICA: 1
+  
+  # ---------------------------------------------------
+  # 3. AUTO-INIT SERVICE FOR CLICKHOUSE SCHEMA
+  # ---------------------------------------------------
+  clickhouse-init:
+    image: clickhouse/clickhouse-client:24.3-alpine
+    container_name: clickhouse-init
+    # This service will run only once, after clickhouse-01 is healthy
+    depends_on: 
+      clickhouse-01:
+        condition: service_started
+      clickhouse-02:
+        condition: service_started
+    volumes:
+      - ./sql_schema:/docker-entrypoint-initdb.d
+    # This command executes all .sql files in the mounted folder
+    # in alphabetical order against the 'clickhouse-01' node.
+    # The 'distributed_ddl' config will replicate the schema to node-02.
+    command: 
+      - "client"
+      - "--host"
+      - "clickhouse-01"
+      - "--multiquery"
+      - "--database"
+      - "default"
