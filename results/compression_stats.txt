@@ -1,0 +1,16 @@
+# === ClickHouse Compression Statistics ===
+#
+# We will run a query (e.g., in exploration.ipynb) against the system.columns table
+# to get the real compression ratios for our 'ticks_local' table.
+#
+# We will paste the results here.
+#
+# EXAMPLE RESULTS:
+#
+# | column       | compressed | uncompressed | compression_ratio |
+# |--------------|------------|--------------|-------------------|
+# | event_time   | 15.20 MiB  | 762.94 MiB   | 50.19             | (Thanks to DoubleDelta)
+# | price        | 25.10 MiB  | 762.94 MiB   | 30.39             | (Thanks to Gorilla)
+# | symbol       | 2.10 MiB   | 245.30 MiB   | 116.81            | (Thanks to LowCardinality)
+# | ...          | ...        | ...          | ...               |
+#
