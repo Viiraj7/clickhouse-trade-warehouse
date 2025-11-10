@@ -1,27 +1,30 @@
 <clickhouse>
     <remote_servers>
-        <!-- This is the name of our cluster, used in the Distributed table -->
-        <analytics_cluster>
-            <!-- Shard 1 -->
+        <trade_cluster>
             <shard>
-                <internal_replication>true</internal_replication>
                 <replica>
-                    <!-- We use the macros defined in docker-compose.yml -->
-                    <!-- to identify this node as replica 1 on shard 1 -->
                     <host>clickhouse-01</host>
                     <port>9000</port>
                 </replica>
             </shard>
 
-            <!-- Shard 2 -->
             <shard>
-                <internal_replication>true</internal_replication>
                 <replica>
-                    <!-- This node is replica 1 on shard 2 -->
                     <host>clickhouse-02</host>
                     <port>9000</port>
                 </replica>
             </shard>
-        </analytics_cluster>
+        </trade_cluster>
     </remote_servers>
+
+    <zookeeper>
+        <node>
+            <host>clickhouse-keeper</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <macros>
+        <cluster>trade_cluster</cluster>
+    </macros>
 </clickhouse>

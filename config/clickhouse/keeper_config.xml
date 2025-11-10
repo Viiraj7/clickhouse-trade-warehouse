@@ -1,8 +1,24 @@
+<?xml version="1.0"?>
 <clickhouse>
-    <zookeeper>
-        <node>
-            <host>clickhouse-keeper</host>
-            <port>9181</port>
-        </node>
-    </zookeeper>
+    <keeper_server>
+        <listen_host>0.0.0.0</listen_host>
+
+        <!-- Keeper client port -->
+        <tcp_port>9181</tcp_port>
+
+        <!-- ✅ SINGLE NODE: no raft_configuration -->
+        <!-- ❌ Remove this:
+        <raft_configuration>
+            <server id="1" hostname="clickhouse-keeper" port="9444"/>
+        </raft_configuration>
+        -->
+
+        <storage_path>/var/lib/clickhouse-keeper/</storage_path>
+        <log_path>/var/log/clickhouse-keeper/</log_path>
+
+        <coordination_settings>
+            <operation_timeout_ms>10000</operation_timeout_ms>
+            <session_timeout_ms>30000</session_timeout_ms>
+        </coordination_settings>
+    </keeper_server>
 </clickhouse>
