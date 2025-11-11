@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <logger>
+        <level>information</level>
+        <console>true</console>
+    </logger>
+
+    <listen_host>0.0.0.0</listen_host>
+
+    <keeper_server>
+        <enable>true</enable>
+        <host>clickhouse-keeper</host>
+        <port>9181</port>
+    </keeper_server>
+
+    <remote_servers>
+        <analytics_cluster>
+            <shard>
+                <replica>
+                    <host>clickhouse-01</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>clickhouse-02</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </analytics_cluster>
+    </remote_servers>
+
+    <zookeeper>
+        <node>
+            <host>clickhouse-keeper</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+</clickhouse>
