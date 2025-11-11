@@ -1,47 +1,47 @@
-import time
 import json
 import random
+import time
+from datetime import datetime
 from kafka import KafkaProducer
-from datetime import datetime, timezone
-import os
 
-KAFKA_TOPIC = "ticks"
-KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "localhost:29092")
+BROKER = "localhost:29092"
+TOPIC = "ticks"
 
-SYMBOLS = ["AAPL", "GOOG", "MSFT", "TSLA"]
+symbols = ["AAPL", "GOOG", "MSFT", "TSLA"]
+sides = ["BUY", "SELL"]
+exchanges = ["NASDAQ", "NYSE"]
 
-def encode_json(data):
-    return json.dumps(data).encode("utf-8")
+def generate_tick(trade_id):
+    return {
+        "trade_id": trade_id,
+        "symbol": random.choice(symbols),
+        "event_time": datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
+        "price": round(random.uniform(100, 300), 2),
+        "volume": random.randint(1, 500),
+        "side": random.choice(sides),
+        "exchange": random.choice(exchanges)
+    }
 
 def main():
-    print(f"Connecting to Kafka broker at {KAFKA_BROKER}...")
+    print(f"Connecting to Kafka broker at {BROKER}...")
 
-    producer = None
-    for attempt in range(1, 6):
-        try:
-            producer = KafkaProducer(
-                bootstrap_servers=[KAFKA_BROKER],
-                value_serializer=encode_json
-            )
-            print("✅ Connected! Sending events...")
-            break
-        except Exception as e:
-            print(f"❌ Attempt {attempt}/5 failed: {e}")
-            time.sleep(2)
+    producer = KafkaProducer(
+        bootstrap_servers=[BROKER],
+        value_serializer=lambda x: json.dumps(x).encode("utf-8")
+    )
 
-    if producer is None:
-        print("❌ Could not connect to Kafka.")
-        return
+    print("✅ Connected! Sending real tick events...")
 
-    i = 0
+    trade_id = 0
     while True:
-        msg = {"id": i, "symbol": random.choice(SYMBOLS)}
-        producer.send(KAFKA_TOPIC, value=msg)
-        if i % 100 == 0:
-            producer.flush()
-            print(f"Sent {i} events...")
-        i += 1
-        time.sleep(0.01)
+        tick = generate_tick(trade_id)
+        producer.send(TOPIC, tick)
+
+        if trade_id % 100 == 0:
+            print(f"Sent {trade_id} ticks...")
+
+        trade_id += 1
+        time.sleep(0.005)  # ~200 ticks per second
 
 if __name__ == "__main__":
     main()
