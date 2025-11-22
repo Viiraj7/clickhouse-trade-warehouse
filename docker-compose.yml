@@ -8,7 +8,7 @@ services:
     volumes:
       - clickhouse-keeper-data:/var/lib/clickhouse-keeper
       - clickhouse-keeper-logs:/var/log/clickhouse-keeper
-      - ./config/clickhouse/keeper.xml:/etc/clickhouse-keeper/keeper.xml
+      - ./config/clickhouse/keeper.xml:/etc/clickhouse-keeper/keeper_config.xml
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 9181 || exit 1"]
       interval: 5s

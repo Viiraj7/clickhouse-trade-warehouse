@@ -8,31 +8,24 @@
     <listen_host>::</listen_host>
     
     <keeper_server>
-        <!-- Keeper client port (like ZK client port) -->
         <tcp_port>9181</tcp_port>
-
-        <!-- Keeper internal RAFT port -->
-        <raft_port>9444</raft_port>
-
-        <!-- SINGLE NODE CONFIG -->
         <server_id>1</server_id>
-
-        <raft_configuration>
-            <server>
-                <id>1</id>
-                <hostname>clickhouse-keeper</hostname>
-                <port>9444</port>
-            </server>
-        </raft_configuration>
-
-        <storage_path>/var/lib/clickhouse-keeper</storage_path>
-        <log_storage_path>/var/lib/clickhouse-keeper/coordination</log_storage_path>
-
-        <snapshot_distance>50000</snapshot_distance>
-
+        
+        <log_storage_path>/var/lib/clickhouse-keeper/logs</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse-keeper/snapshots</snapshot_storage_path>
+        
         <coordination_settings>
             <operation_timeout_ms>10000</operation_timeout_ms>
             <session_timeout_ms>30000</session_timeout_ms>
+            <raft_logs_level>information</raft_logs_level>
         </coordination_settings>
+        
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>localhost</hostname>
+                <port>9444</port>
+            </server>
+        </raft_configuration>
     </keeper_server>
 </clickhouse>
