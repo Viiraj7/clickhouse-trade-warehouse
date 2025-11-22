@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from clickhouse_client import get_clickhouse_client
 import time
 
@@ -43,7 +43,7 @@ def run_backtest_slow(symbol: str = "AAPL", limit: int = 100):
         raise HTTPException(status_code=503, detail="Database connection not available.")
 
     # This is the "slow" query. It must scan raw data and group it.
-    query = f"""
+    query = """
     SELECT
         toStartOfMinute(event_time) AS minute,
         symbol,
@@ -54,15 +54,15 @@ def run_backtest_slow(symbol: str = "AAPL", limit: int = 100):
         sum(size) AS volume,
         sum(price * size) / sum(size) AS vwap
     FROM 
-        default.ticks_all -- Query the Distributed table
+        default.ticks_all
     WHERE 
-        symbol = %(symbol)s 
+        symbol = {symbol:String}
         AND event_type = 'trade'
     GROUP BY 
         symbol, minute
     ORDER BY 
         minute DESC
-    LIMIT %(limit)s
+    LIMIT {limit:UInt32}
     """
     
     try:
@@ -93,7 +93,7 @@ def run_backtest_fast(symbol: str = "AAPL", limit: int = 100):
         raise HTTPException(status_code=503, detail="Database connection not available.")
 
     # This is the "fast" query. It reads pre-calculated states.
-    query = f"""
+    query = """
     SELECT
         minute,
         symbol,
@@ -105,14 +105,14 @@ def run_backtest_fast(symbol: str = "AAPL", limit: int = 100):
         sumMerge(volume) AS volume,
         sumMerge(vwap_pv) / sumMerge(volume) AS vwap
     FROM 
-        default.trades_1m_agg -- Query the AGGREGATING table
+        default.trades_1m_agg
     WHERE 
-        symbol = %(symbol)s
+        symbol = {symbol:String}
     GROUP BY 
         symbol, minute
     ORDER BY 
         minute DESC
-    LIMIT %(limit)s
+    LIMIT {limit:UInt32}
     """
     
     try:
@@ -145,7 +145,7 @@ def get_dedup_raw_count(symbol: str = "AAPL"):
     if client is None:
         raise HTTPException(status_code=503, detail="Database connection not available.")
     
-    query = "SELECT count() FROM default.ticks_dedup WHERE symbol = %(symbol)s"
+    query = "SELECT count() FROM default.ticks_dedup WHERE symbol = {symbol:String}"
     
     try:
         start_time = time.perf_counter()
@@ -171,7 +171,7 @@ def get_dedup_final_count(symbol: str = "AAPL"):
     
     # The FINAL keyword forces ClickHouse to perform the merge
     # logic on the fly, giving us the accurate, deduplicated count.
-    query = "SELECT count() FROM default.ticks_dedup FINAL WHERE symbol = %(symbol)s"
+    query = "SELECT count() FROM default.ticks_dedup FINAL WHERE symbol = {symbol:String}"
     
     try:
         start_time = time.perf_counter()
@@ -189,9 +189,83 @@ def get_dedup_final_count(symbol: str = "AAPL"):
 
 
 # ---
-# 3. (STRETCH GOAL) HOT PATH ENDPOINT
+# 3. CUSTOM QUERY ENDPOINT
 # ---
-# We will fill this in later if we build the realtime_cache.
+@app.post("/query/custom")
+async def execute_custom_query(request: Request):
+    """
+    Execute a custom ClickHouse query.
+    Accepts JSON with 'query' field containing SQL.
+    """
+    if client is None:
+        raise HTTPException(status_code=503, detail="Database connection not available.")
+    
+    try:
+        body = await request.json()
+        query = body.get("query", "")
+        
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
+        
+        start_time = time.perf_counter()
+        result = client.execute(query, with_column_types=True)
+        end_time = time.perf_counter()
+        
+        # Process results
+        columns = [col[0] for col in result[1]]
+        data = [dict(zip(columns, row)) for row in result[0]]
+        
+        return {
+            "query": query,
+            "query_time_ms": (end_time - start_time) * 1000,
+            "rows_returned": len(data),
+            "columns": columns,
+            "data": data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ---
+# 4. COMPRESSION STATS ENDPOINT
+# ---
+@app.get("/stats/compression")
+def get_compression_stats():
+    """
+    Get compression statistics for ClickHouse tables.
+    """
+    if client is None:
+        raise HTTPException(status_code=503, detail="Database connection not available.")
+    
+    try:
+        query = """
+        SELECT
+            table,
+            name AS column,
+            formatReadableSize(data_compressed_bytes) AS compressed,
+            formatReadableSize(data_uncompressed_bytes) AS uncompressed,
+            round(data_uncompressed_bytes / data_compressed_bytes, 2) AS compression_ratio
+        FROM system.columns
+        WHERE database = 'default'
+            AND table IN ('ticks_local', 'trades_1m_agg', 'ticks_dedup')
+            AND data_compressed_bytes > 0
+        ORDER BY table, data_compressed_bytes DESC
+        """
+        
+        result = client.execute(query, with_column_types=True)
+        columns = [col[0] for col in result[1]]
+        data = [dict(zip(columns, row)) for row in result[0]]
+        
+        return {
+            "query_time_ms": 0,  # Stats query is usually fast
+            "rows_returned": len(data),
+            "data": data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ---
+# 5. (STRETCH GOAL) HOT PATH ENDPOINT
+# ---
 @app.get("/realtime/book-depth")
 def get_book_depth(symbol: str = "AAPL"):
     # This endpoint will NOT query ClickHouse.

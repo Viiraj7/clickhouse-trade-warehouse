@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   clickhouse-keeper:
     image: clickhouse/clickhouse-keeper:24.3
@@ -11,6 +9,12 @@ services:
       - clickhouse-keeper-data:/var/lib/clickhouse-keeper
       - clickhouse-keeper-logs:/var/log/clickhouse-keeper
       - ./config/clickhouse/keeper.xml:/etc/clickhouse-keeper/keeper.xml
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9181 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     restart: always
 
   kafka-keeper:
@@ -47,40 +51,61 @@ services:
     image: clickhouse/clickhouse-server:24.3
     container_name: clickhouse-01
     depends_on:
-      - clickhouse-keeper
+      clickhouse-keeper:
+        condition: service_healthy
     ports:
       - "8123:8123"
       - "9000:9000"
     volumes:
       - clickhouse-data-01:/var/lib/clickhouse
+      - clickhouse-logs-01:/var/log/clickhouse-server
       - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.xml
+      - ./config/clickhouse/users.xml:/etc/clickhouse-server/users.xml
+      - ./config/clickhouse/macros-01.xml:/etc/clickhouse-server/config.d/macros.xml
+    environment:
+      - CLICKHOUSE_DB=default
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     restart: always
 
   clickhouse-02:
     image: clickhouse/clickhouse-server:24.3
     container_name: clickhouse-02
     depends_on:
-      - clickhouse-keeper
+      clickhouse-keeper:
+        condition: service_healthy
     ports:
       - "8124:8123"
       - "9001:9000"
     volumes:
       - clickhouse-data-02:/var/lib/clickhouse
+      - clickhouse-logs-02:/var/log/clickhouse-server
       - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.xml
+      - ./config/clickhouse/users.xml:/etc/clickhouse-server/users.xml
+      - ./config/clickhouse/macros-02.xml:/etc/clickhouse-server/config.d/macros.xml
+    environment:
+      - CLICKHOUSE_DB=default
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     restart: always
 
-  clickhouse-init:
-    image: clickhouse/clickhouse-server:24.3
-    container_name: clickhouse-init
-    depends_on:
-      - clickhouse-01
-      - clickhouse-02
-    volumes:
-      - ./config/clickhouse/init_cluster.sql:/docker-entrypoint-initdb.d/init_cluster.sql
-    entrypoint: ["/bin/true"]
 
 volumes:
   clickhouse-keeper-data:
   clickhouse-keeper-logs:
   clickhouse-data-01:
   clickhouse-data-02:
+  clickhouse-logs-01:
+  clickhouse-logs-02:

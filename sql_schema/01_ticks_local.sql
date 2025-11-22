@@ -22,5 +22,5 @@ CREATE TABLE IF NOT EXISTS default.ticks_local ON CLUSTER analytics_cluster
 -- === Table Settings ===
 PARTITION BY toYYYYMM(event_time)           -- Group data into monthly partitions on disk. Good balance for TTL and query speed.
 ORDER BY (symbol, event_time, seq_id)      -- CRITICAL FOR BACKTESTING: Data is physically sorted by symbol, then time. Makes symbol+time range queries instant.
-TTL event_time + INTERVAL 30 DAY           -- Automatically delete data older than 30 days.
+TTL toDateTime(event_time) + INTERVAL 30 DAY           -- Automatically delete data older than 30 days.
 SETTINGS index_granularity = 8192;         -- Default index granularity, good starting point.

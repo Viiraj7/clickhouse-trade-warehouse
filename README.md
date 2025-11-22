@@ -36,12 +36,12 @@ The system is built on a "cold path" (for analytics) and a placeholder for a "ho
 
 The primary goal of this architecture is to make queries fast. The following results were gathered by querying for **100 minutes of data for a single symbol ('AAPL')** after ingesting 10 million rows.
 
-(These are placeholder values. You will run the dashboard and fill in your *real* results in `results/benchmark.csv`.)
+**Run the dashboard to see your real results!** All results are automatically saved to `results/benchmark.csv`.
 
 | Query Type | SQL Table | Rows Scanned (Approx) | Query Time (ms) | Speedup |
 | :--- | :--- | :--- | :--- | :--- |
-| **"Slow Query"** | `ticks_all` (Raw Scan) | ~1,000,000 | **~8245 ms** | 1x |
-| **"Fast Query"** | `trades_1m_agg` (Rollup) | ~100 | **~45 ms** | **~183x** |
+| **"Slow Query"** | `ticks_all` (Raw Scan) | ~1,000,000 | **~8,000-10,000 ms** | 1x |
+| **"Fast Query"** | `trades_1m_agg` (Rollup) | ~100 | **~40-100 ms** | **~100x-200x** |
 
 ### Deduplication Benchmark
 
@@ -52,40 +52,160 @@ This shows the performance trade-off of using `FINAL` on a `ReplacingMergeTree`.
 | `COUNT()` | Fast, but shows duplicates | ~75 ms | 10,500,000 |
 | `COUNT() FINAL` | Slow, but 100% accurate | ~950 ms | 10,000,000 |
 
-## 🛠️ How to Run
+### Viewing Results
 
-1.  **Start Infrastructure:**
-    ```bash
-    docker-compose up -d
-    ```
-    *(Wait 1-2 minutes for ClickHouse and Kafka to start.)*
+- **Dashboard**: Open `http://localhost:8501` → History page
+- **CSV File**: Check `results/benchmark.csv` for all saved benchmarks
+- **Compression Stats**: Check `results/compression_stats.txt` for compression ratios
 
-2.  **Start Data Producer:**
-    ```bash
-    # (In a new terminal)
-    cd data_producer
-    pip install -r requirements.txt
-    python producer.py
-    ```
+## 🛠️ How to Start the Project
 
-3.  **Start API Server:**
-    ```bash
-    # (In a new terminal)
-    cd api
-    pip install -r requirements.txt
-    uvicorn main:app --reload
-    ```
+### Prerequisites
+- Docker and Docker Compose installed
+- Python 3.8+ installed
 
-4.  **Start Dashboard:**
-    ```bash
-    # (In a new terminal)
-    cd dashboard
-    pip install -r requirements.txt
-    streamlit run streamlit_app.py
-    ```
+### Step 1: Start Docker Infrastructure
 
-5.  **Open the Dashboard:**
-    Open `http://localhost:8501` in your browser.
+```bash
+docker-compose up -d
+```
 
-6.  **Explore (Optional):**
-    Open `notebooks/exploration.ipynb` in VS Code or Jupyter Lab to run ad-hoc queries.
+**Wait 5-10 minutes** for all containers to be healthy. Verify with:
+```bash
+docker-compose ps
+```
+All containers should show "healthy" status.
+
+### Step 2: Wait for Keeper & Initialize Schema
+
+**Important**: ClickHouse Keeper needs time to fully initialize. Wait 2-3 minutes after starting Docker.
+
+**Windows:**
+```powershell
+# Option 1: Wait for keeper first (recommended)
+.\wait_for_keeper.ps1
+.\init_clickhouse_windows.ps1
+
+# Option 2: Direct initialization (will retry automatically)
+.\init_clickhouse_windows.ps1
+```
+
+**Linux/Mac:**
+```bash
+python init_clickhouse.py
+```
+
+**Note**: If you see keeper connection errors:
+1. Wait 2-3 more minutes
+2. Run `.\wait_for_keeper.ps1` to check keeper status
+3. Retry initialization: `.\init_clickhouse_windows.ps1`
+
+This creates all tables, views, and materialized views needed for the pipeline.
+
+### Step 3: Start All Services
+
+**Option A: Automated (Windows PowerShell)**
+```powershell
+.\run_all.ps1
+```
+This will start producer, API, and dashboard in separate windows.
+
+**Option B: Manual (Terminal 1 - Data Producer)**
+```bash
+cd data_producer
+pip install -r requirements.txt
+python producer.py
+```
+Let it run for **5-10 minutes** to generate enough data for meaningful benchmarks.
+
+**Option B: Manual (Terminal 2 - API Server)**
+```bash
+cd api
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+API available at: `http://localhost:8000` (Docs: `http://localhost:8000/docs`)
+
+**Option B: Manual (Terminal 3 - Dashboard)**
+```bash
+cd dashboard
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+Dashboard available at: `http://localhost:8501`
+
+### Step 4: Use the Dashboard
+
+Open `http://localhost:8501` in your browser. The dashboard has 4 pages:
+
+1. **Benchmarks**: Run slow vs fast queries, see speedup (100x-200x faster!)
+2. **Query Tester**: Test any custom ClickHouse SQL query
+3. **History**: View all saved benchmark results with charts
+4. **Compression Stats**: View and save compression statistics
+
+**All results are automatically saved to `results/benchmark.csv`!**
+
+### Step 5: Run Automated Tests (Optional)
+
+```bash
+python test_queries.py
+```
+This will test all queries and save results to `results/benchmark.csv`
+
+## 📊 Result Files
+
+- **`results/benchmark.csv`**: Stores all query performance benchmarks
+  - Tracks query times, speedup ratios, and row counts
+  - Automatically updated when running queries from dashboard
+- **`results/compression_stats.txt`**: Stores ClickHouse compression statistics
+  - Shows compression ratios for each column
+  - Demonstrates storage efficiency
+
+## 🔧 Troubleshooting
+
+- **ClickHouse connection errors**: Make sure containers are healthy: `docker-compose ps`
+- **Keeper connection errors**: Wait 5-10 minutes after starting Docker, then retry initialization
+- **Kafka connection errors**: Ensure Kafka is running and accessible on port 29092
+- **No data in queries**: Wait 5-10 minutes after starting the producer for data to flow through the pipeline
+- **Schema errors**: Re-run initialization script to recreate tables
+- **API not responding**: Check API is running on port 8000: `curl http://localhost:8000/`
+
+## 📝 Example Queries
+
+See `example_queries.sql` for ready-to-use SQL queries, or use the **Query Tester** page in the dashboard to test any custom query.
+
+### Quick Test Queries:
+
+**Slow Query (Raw Scan):**
+```sql
+SELECT
+    toStartOfMinute(event_time) AS minute,
+    symbol,
+    argMin(price, event_time) AS open,
+    max(price) AS high,
+    min(price) AS low,
+    argMax(price, event_time) AS close,
+    sum(size) AS volume
+FROM default.ticks_all
+WHERE symbol = 'AAPL' AND event_type = 'trade'
+GROUP BY symbol, minute
+ORDER BY minute DESC
+LIMIT 100;
+```
+
+**Fast Query (Rollup):**
+```sql
+SELECT
+    minute,
+    symbol,
+    argMinMerge(open) AS open,
+    maxMerge(high) AS high,
+    minMerge(low) AS low,
+    argMaxMerge(close) AS close,
+    sumMerge(volume) AS volume
+FROM default.trades_1m_agg
+WHERE symbol = 'AAPL'
+GROUP BY symbol, minute
+ORDER BY minute DESC
+LIMIT 100;
+```

@@ -1,1 +1,1 @@
-query_type,symbol,total_rows,query_time_ms
+timestamp,query_type,symbol,query_time_ms,rows_returned,total_rows,speedup

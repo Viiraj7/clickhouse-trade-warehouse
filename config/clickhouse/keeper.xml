@@ -5,10 +5,9 @@
         <console>true</console>
     </logger>
 
+    <listen_host>::</listen_host>
+    
     <keeper_server>
-        <!-- Listen on all interfaces -->
-        <listen_host>0.0.0.0</listen_host>
-
         <!-- Keeper client port (like ZK client port) -->
         <tcp_port>9181</tcp_port>
 

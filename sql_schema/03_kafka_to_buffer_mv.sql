@@ -13,14 +13,14 @@ AS SELECT
     
     seq_id,
     
-    -- toEnum safely casts the string 'trade' to its Enum8 value (1)
-    toEnum('Enum8', event_type) AS event_type, 
+    -- CAST safely converts the string to Enum8
+    CAST(event_type AS Enum8('trade' = 1, 'quote' = 2, 'book' = 3)) AS event_type, 
     
     price,
     size,
     
-    -- Casts 'buy'/'sell' to their Enum8 values (1 or 2)
-    toEnum('Enum8', side) AS side, 
+    -- CAST converts 'buy'/'sell' strings to their Enum8 values (1 or 2)
+    CAST(side AS Enum8('buy' = 1, 'sell' = 2)) AS side, 
     
     source_version
     
