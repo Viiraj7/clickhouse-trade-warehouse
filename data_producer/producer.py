@@ -74,7 +74,7 @@ def main():
                 print(f"Sent {seq_id} ticks...")
 
             seq_id += 1
-            time.sleep(0.005)  # ~200 ticks per second
+            time.sleep(0.0005)  # ~2000 ticks per second
     except KeyboardInterrupt:
         print("\n\nStopping producer...")
         producer.flush()
