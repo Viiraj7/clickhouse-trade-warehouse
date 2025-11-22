@@ -1,16 +1,13 @@
-# === ClickHouse Compression Statistics ===
-#
-# We will run a query (e.g., in exploration.ipynb) against the system.columns table
-# to get the real compression ratios for our 'ticks_local' table.
-#
-# We will paste the results here.
-#
-# EXAMPLE RESULTS:
-#
-# | column       | compressed | uncompressed | compression_ratio |
-# |--------------|------------|--------------|-------------------|
-# | event_time   | 15.20 MiB  | 762.94 MiB   | 50.19             | (Thanks to DoubleDelta)
-# | price        | 25.10 MiB  | 762.94 MiB   | 30.39             | (Thanks to Gorilla)
-# | symbol       | 2.10 MiB   | 245.30 MiB   | 116.81            | (Thanks to LowCardinality)
-# | ...          | ...        | ...          | ...               |
-#
+# ClickHouse Compression Statistics
+# Generated: 2025-11-23T03:29:17.395146
+
+      table         column compressed uncompressed  compression_ratio
+ticks_dedup     event_time   6.66 MiB    10.54 MiB               1.58
+ticks_dedup          price   5.49 MiB    10.54 MiB               1.92
+ticks_dedup         seq_id   5.30 MiB    10.54 MiB               1.99
+ticks_dedup           size   3.86 MiB     5.27 MiB               1.37
+ticks_dedup       exchange   2.11 MiB     7.91 MiB               3.75
+ticks_dedup     event_type 901.09 KiB     1.32 MiB               1.50
+ticks_dedup           side 810.53 KiB     1.32 MiB               1.66
+ticks_dedup source_version 140.86 KiB    10.54 MiB              76.64
+ticks_dedup         symbol   6.63 KiB     1.32 MiB             204.04
